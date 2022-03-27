@@ -37,7 +37,7 @@ Flags:
 |--------------------------------------------------------------|--------------------------------------------------------------------------------|
 | /services                                                    | lists all discovered and valid mbtiles in the tiles directory                  |
 | /services/\<path-to-tileset>                                 | shows tileset metadata                                                         |                                                            |
-| /services/\<path-to-tileset>/tiles/{z}/{x}/{y}.<tile-format> | returns tileset tile at the given x, y, and z                                  |
+| /services/\<path-to-tileset>/tiles/{z}/{x}/{y}.\<tile-format> | returns tileset tile at the given x, y, and z                                  |
 | /refresh                                                     | refresh mbtiles files                                  |
 
 ## References

@@ -1,0 +1,12 @@
+[Unit]
+Description=Serve tiles from mbtiles files.
+After=network.target
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=5s
+ExecStart=/usr/bin/java -Dserver.port=8000 -Ddir=/opt/mbtiles -jar /usr/local/bin/mbtileserver.jar
+
+[Install]
+WantedBy=multi-user.target

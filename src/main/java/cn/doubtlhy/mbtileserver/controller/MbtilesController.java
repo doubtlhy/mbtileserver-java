@@ -40,6 +40,7 @@ public class MbtilesController {
         try {
             mbtilesListBean.setmbtilesValue();
             status.code = 0;
+            status.msg = "refresh succeeded";
         } catch (Exception e) {
             status.code = -1;
             status.msg = e.getMessage();

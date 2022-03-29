@@ -137,7 +137,7 @@ public class TileController {
             String[] pcs = requestURI.substring(1).split("/");
             // we are expecting at least "services", <id> , "tiles", <z>, <x>, <y plus .ext>
             int len = pcs.length;
-            if (len < 6 || pcs[5] == "") {
+            if (len < 6 || pcs[5].equals("")) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("requested path is too short");
             }
             z = Integer.parseInt(pcs[len - 3]);
@@ -186,6 +186,7 @@ public class TileController {
         HttpHeaders headers = new HttpHeaders();
         switch (format) {
             case "png":
+                return ResponseEntity.status(HttpStatus.OK).headers(headers).body(blankPNG());
             case "jpg":
             case "webp":
                 headers.add("Content-Type", "image/png");
@@ -194,11 +195,10 @@ public class TileController {
                     try {
                         return ResponseEntity.status(HttpStatus.OK).headers(headers).body(Files.readAllBytes(watermark.toPath()));
                     } catch (IOException e) {
-                        return ResponseEntity.status(HttpStatus.OK).headers(headers).body(blankPNG());
+                        log.error("read watermark file failed: {}", e.getMessage());
                     }
-                } else {
-                    return ResponseEntity.status(HttpStatus.OK).headers(headers).body(blankPNG());
                 }
+                return ResponseEntity.status(HttpStatus.OK).headers(headers).body(blankPNG());
             case "pbf":
                 return ResponseEntity.status(HttpStatus.NO_CONTENT).body("");
             default:

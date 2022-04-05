@@ -1,7 +1,8 @@
 package cn.doubtlhy.mbtileserver.controller;
 
-import cn.doubtlhy.mbtileserver.compoent.MbtilesListBean;
-import cn.doubtlhy.mbtileserver.model.MbtilesInfo;
+import cn.doubtlhy.mbtileserver.component.Server;
+import cn.doubtlhy.mbtileserver.component.ServiceSet;
+import cn.doubtlhy.mbtileserver.component.Tileset;
 import cn.doubtlhy.mbtileserver.model.UpdateStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,7 +13,10 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/services")
@@ -20,21 +24,27 @@ public class MbtilesController {
 
     private static final Logger log = LoggerFactory.getLogger(MbtilesController.class);
     @Autowired
-    MbtilesListBean mbtilesListBean;
+    Server server;
+    ServiceSet svcSet = Server.svcSet;
 
     @ResponseBody
     @RequestMapping(method = RequestMethod.GET, path = {"", "/"}, produces = {"application/json;charset=UTF-8"})
-    public List<MbtilesInfo> serviceList(HttpServletRequest request) {
-        String requestURL = request.getRequestURL().toString();
-        if (requestURL.endsWith("/")) {
-            requestURL = requestURL.substring(0, requestURL.length() - 1);
+    public List<Map<String, String>> serviceList(HttpServletRequest request) {
+        String requestURI = request.getRequestURI();
+        if (requestURI.endsWith("/")) {
+            requestURI = requestURI.substring(0, requestURI.length() - 1);
         }
-//        mbtilesListBean.setRootURL(String.format("%s/", requestURL));
-        List<MbtilesInfo> mbtilesInfoList = mbtilesListBean.getAllmbfiles();
-        for (MbtilesInfo mb: mbtilesInfoList) {
-            mb.url = String.format("%s://%s:%s%s", request.getScheme(), request.getServerName(), request.getServerPort(), mb.getUrl());
+        String rootURL = String.format("%s://%s:%s%s", request.getScheme(), request.getServerName(), request.getServerPort(), requestURI);
+        List<Map<String, String>> services = new ArrayList<>();
+        for (String id : svcSet.getTilesets().keySet()) {
+            Tileset ts = svcSet.getTilesets(id);
+            Map<String, String> serviceInfo = new HashMap<>();
+            serviceInfo.put("imageType", ts.getTileformatString());
+            serviceInfo.put("url", String.format("%s/%s", rootURL, id));
+            serviceInfo.put("name", ts.getName());
+            services.add(serviceInfo);
         }
-        return mbtilesInfoList;
+        return services;
     }
 
     @ResponseBody
@@ -42,7 +52,7 @@ public class MbtilesController {
     public UpdateStatus refreshFolder() {
         UpdateStatus status = new UpdateStatus();
         try {
-            mbtilesListBean.setmbtilesValue();
+            server.refreshTilesets();
             status.code = 0;
             status.msg = "refresh succeeded";
         } catch (Exception e) {

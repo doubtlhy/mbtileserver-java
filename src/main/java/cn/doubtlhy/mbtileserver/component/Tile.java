@@ -1,4 +1,4 @@
-package cn.doubtlhy.mbtileserver.handlers;
+package cn.doubtlhy.mbtileserver.component;
 
 import java.io.InputStream;
 

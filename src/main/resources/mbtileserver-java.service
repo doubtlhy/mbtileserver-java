@@ -6,6 +6,7 @@ After=network.target
 Type=simple
 Restart=on-failure
 RestartSec=5s
+WorkingDirectory=/opt/mbtiles
 ExecStart=/usr/bin/java -Dserver.port=8000 -Ddir=/opt/mbtiles -jar /usr/local/bin/mbtileserver.jar
 
 [Install]

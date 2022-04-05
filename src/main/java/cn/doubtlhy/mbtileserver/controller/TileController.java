@@ -1,10 +1,6 @@
 package cn.doubtlhy.mbtileserver.controller;
 
-import cn.doubtlhy.mbtileserver.compoent.MbtilesListBean;
-import cn.doubtlhy.mbtileserver.handlers.MBTilesReader;
-import cn.doubtlhy.mbtileserver.handlers.MetadataEntry;
-import cn.doubtlhy.mbtileserver.handlers.Tile;
-import cn.doubtlhy.mbtileserver.model.MbtilesObject;
+import cn.doubtlhy.mbtileserver.component.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,9 +8,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.ModelMap;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
@@ -25,7 +18,6 @@ import javax.servlet.http.HttpServletRequest;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -37,7 +29,8 @@ public class TileController {
 
     private static final Logger log = LoggerFactory.getLogger(TileController.class);
     @Autowired
-    MbtilesListBean mbtilesListBean;
+    Server server;
+    ServiceSet svcSet = Server.svcSet;
     @Autowired
     private RequestMappingHandlerMapping handlerMapping;
 
@@ -46,7 +39,7 @@ public class TileController {
      */
     @PostConstruct
     public void init() throws NoSuchMethodException {
-        HashMap<String, MbtilesObject> tilesets = mbtilesListBean.getTilesets();
+        Map<String, Tileset> tilesets = svcSet.getTilesets();
         for (String id : tilesets.keySet()) {
             handlerMapping.registerMapping(
                     RequestMappingInfo.paths("/services/" + id).methods(RequestMethod.GET)
@@ -59,79 +52,20 @@ public class TileController {
                             .build(),
                     this,
                     TileController.class.getDeclaredMethod("getTile", HttpServletRequest.class));
-
-//            handlerMapping.registerMapping(
-//                    RequestMappingInfo.paths("/services/" + id + "/map").methods(RequestMethod.GET)
-//                            .build(),
-//                    this,
-//                    TileController.class.getDeclaredMethod("previewHandler", ModelMap.class, HttpServletRequest.class));
         }
     }
 
     public Map<String, Object> getTileJSON(HttpServletRequest request) {
-        String requestURL = request.getRequestURL().toString();
-        if (requestURL.endsWith("/")) {
-            requestURL = requestURL.substring(0, requestURL.length() - 1);
-        }
-//        mbtilesListBean.setRootURL(String.format("%s", requestURL));
         String requestURI = request.getRequestURI();
         if (requestURI.endsWith("/")) {
             requestURI = requestURI.substring(0, requestURI.length() - 1);
         }
-        String id = requestURI.substring("/services/".length());
-        MbtilesObject mbtilesObject = mbtilesListBean.getMBReader(id);
-        MBTilesReader mbTilesReader = mbtilesObject.getMBTileReader();
-        String format = mbtilesObject.getImageFormat();
-        String host = String.format("%s://%s:%s", request.getScheme(), request.getServerName(), request.getServerPort());
-        Map<String, Object> tileJSON = new HashMap<String, Object>() {
-            {
-                put("tilejson", "2.1.0");
-                put("scheme", "xyz");
-                put("format", format);
-                put("tiles", new String[]{String.format("%s%s/tiles/{z}/{x}/{y}.%s", host, request.getRequestURI(), format)});
-                put("map", String.format("%s%s/map", host, request.getRequestURI()));
-            }
-        };
-        String fileName = mbTilesReader.getFile().getName();
-        String prefix = fileName.substring(0, fileName.lastIndexOf("."));
-
-        try {
-            MetadataEntry metadata = mbTilesReader.getMetadata();
-            String name = metadata.getTilesetName();
-            if (StringUtils.isEmpty(name)) {
-                name = prefix;
-            }
-            tileJSON.put("name", name);
-
-            for (Map.Entry<String, Object> entry : mbTilesReader.readMetadata().entrySet()) {
-                switch (entry.getKey()) {
-                    // strip out values above
-                    case "tilejson":
-                    case "map":
-                    case "tiles":
-                    case "format":
-                    case "scheme":
-                    case "id":
-                        continue;
-                        // strip out values that are not supported or are overridden below
-                    case "grids":
-                    case "interactivity":
-                    case "modTime":
-                        continue;
-                        // strip out values that come from TileMill but aren't useful here
-                    case "metatile":
-                    case "scale":
-                    case "autoscale":
-                    case "_updated":
-                    case "Layer":
-                    case "Stylesheet":
-                        continue;
-                    default:
-                        tileJSON.put(entry.getKey(), entry.getValue());
-                }
-            }
-        } catch (Exception e) {
-            log.error(e.getMessage(), e);
+        String tilesetURL = String.format("%s://%s:%s%s", request.getScheme(), request.getServerName(), request.getServerPort(), requestURI);
+        String id = IDFromURLPath(requestURI);
+        Tileset ts = svcSet.getTilesets(id);
+        Map<String, Object> tileJSON = ts.getTileJSON(tilesetURL, request.getQueryString());
+        if (svcSet.enablePreview) {
+            tileJSON.put("map", String.format("%s/map", tilesetURL));
         }
         return tileJSON;
     }
@@ -160,26 +94,21 @@ public class TileController {
             String id = requestURI.substring(0, requestURI.lastIndexOf("/tiles/"));
             id = id.substring("/services/".length());
 
-            MbtilesObject mbtilesObject = mbtilesListBean.getMBReader(id);
-            MBTilesReader mbTilesReader = mbtilesObject.getMBTileReader();
-            String format = mbtilesObject.getImageFormat();
-            if (mbTilesReader != null) {
-                Tile tile = mbTilesReader.getTile(z, x, y);
-                if (tile.getData() != null) {
-                    int size = tile.getData().available();
-                    byte[] bytes = new byte[size];
-                    tile.getData().read(bytes);
-                    HttpHeaders headers = new HttpHeaders();
-                    if (format.contains("pbf")) {
-                        headers.add("Content-Type", "application/x-protobuf");
-                        headers.add("Content-Encoding", "gzip");
-                    } else {
-                        headers.add("Content-Type", String.format("image/%s", format));
-                    }
-                    return ResponseEntity.status(HttpStatus.OK).headers(headers).body(bytes);
+            Tileset ts = svcSet.getTilesets(id);
+            TileFormat tileFormat = ts.getTileformat();
+            Tile tile = ts.getDb().readTile(z, x, y);
+            if (tile.getData() != null) {
+                int size = tile.getData().available();
+                byte[] bytes = new byte[size];
+                tile.getData().read(bytes);
+                HttpHeaders headers = new HttpHeaders();
+                headers.add("Content-Type", tileFormat.getContentType());
+                if (tileFormat.toString().contains("pbf")) {
+                    headers.add("Content-Encoding", "gzip");
                 }
+                return ResponseEntity.status(HttpStatus.OK).headers(headers).body(bytes);
             }
-            return tileNotFoundHandler(format);
+            return tileNotFoundHandler(tileFormat);
         } catch (NumberFormatException e) {
             log.error(e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -191,16 +120,16 @@ public class TileController {
         }
     }
 
-    public ResponseEntity tileNotFoundHandler(String format) {
+    public ResponseEntity tileNotFoundHandler(TileFormat format) {
         HttpHeaders headers = new HttpHeaders();
         switch (format) {
-            case "png":
+            case PNG:
                 return ResponseEntity.status(HttpStatus.OK).headers(headers).body(blankPNG());
-            case "jpg":
-            case "webp":
+            case JPG:
+            case WEBP:
                 headers.add("Content-Type", "image/png");
-                File watermark = mbtilesListBean.getWatermark();
-                if (watermark != null) {
+                File watermark = new File("watermark.png");
+                if (watermark.exists()) {
                     try {
                         return ResponseEntity.status(HttpStatus.OK).headers(headers).body(Files.readAllBytes(watermark.toPath()));
                     } catch (IOException e) {
@@ -208,7 +137,7 @@ public class TileController {
                     }
                 }
                 return ResponseEntity.status(HttpStatus.OK).headers(headers).body(blankPNG());
-            case "pbf":
+            case PBF:
                 return ResponseEntity.status(HttpStatus.NO_CONTENT).body("");
             default:
                 headers.add("Content-Type", "application/json");
@@ -234,5 +163,30 @@ public class TileController {
             bytes[i] = (byte) a[i];
         }
         return bytes;
+    }
+
+    public String IDFromURLPath(String id) {
+        String root = svcSet.getRootURL() + "/";
+        if (id.startsWith(root)) {
+            id = id.replace(root, "");
+            if (svcSet.getTilesets(id) != null) {
+                return id;
+            }
+            int i = id.lastIndexOf("/tiles/");
+            if (i != -1) {
+                id = id.substring(0, i);
+            } else {
+                i = id.lastIndexOf("/map");
+                if (i != -1) {
+                    id = id.substring(0, i);
+                }
+            }
+        } else {
+            return "";
+        }
+        if (svcSet.getTilesets(id) != null) {
+            return id;
+        }
+        return "";
     }
 }

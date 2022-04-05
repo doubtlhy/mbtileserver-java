@@ -29,8 +29,12 @@ public class MbtilesController {
         if (requestURL.endsWith("/")) {
             requestURL = requestURL.substring(0, requestURL.length() - 1);
         }
-        mbtilesListBean.setRootURL(String.format("%s", requestURL));
-        return mbtilesListBean.getAllmbfiles();
+//        mbtilesListBean.setRootURL(String.format("%s/", requestURL));
+        List<MbtilesInfo> mbtilesInfoList = mbtilesListBean.getAllmbfiles();
+        for (MbtilesInfo mb: mbtilesInfoList) {
+            mb.url = String.format("%s://%s:%s%s", request.getScheme(), request.getServerName(), request.getServerPort(), mb.getUrl());
+        }
+        return mbtilesInfoList;
     }
 
     @ResponseBody

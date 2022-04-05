@@ -22,7 +22,7 @@ public class MbtilesListBean implements InitializingBean {
     private static final Logger log = LoggerFactory.getLogger(MbtilesListBean.class);
     @Value("${dir}")
     private String mbPath;
-    private String rootURL;
+    private String rootURL = "/services";
     private File watermark;
     private List<MbtilesInfo> mbtilesInfoList = new ArrayList<>();
     private HashMap<String, MbtilesObject> tilesets = new HashMap<>();
@@ -49,7 +49,7 @@ public class MbtilesListBean implements InitializingBean {
 
     public List<MbtilesInfo> getAllmbfiles() {
         for (MbtilesInfo mb : mbtilesInfoList) {
-            mb.url = String.format("%s%s", rootURL, mb.id);
+            mb.url = String.format("%s/%s", rootURL, mb.id);
         }
         return mbtilesInfoList;
     }
@@ -145,7 +145,7 @@ public class MbtilesListBean implements InitializingBean {
         if (!"/".equals(File.separator)) {
             subpath = subpath.replaceAll(File.separator + File.separator, "/");
         }
-        return subpath.substring(0, subpath.lastIndexOf("."));
+        return subpath.substring(1, subpath.lastIndexOf("."));
     }
 
 }

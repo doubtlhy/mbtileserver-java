@@ -12,6 +12,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.ModelMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
@@ -47,16 +49,22 @@ public class TileController {
         HashMap<String, MbtilesObject> tilesets = mbtilesListBean.getTilesets();
         for (String id : tilesets.keySet()) {
             handlerMapping.registerMapping(
-                    RequestMappingInfo.paths("/services" + id).methods(RequestMethod.GET)
+                    RequestMappingInfo.paths("/services/" + id).methods(RequestMethod.GET)
                             .produces(MediaType.APPLICATION_JSON_VALUE).build(),
                     this,
                     TileController.class.getDeclaredMethod("getTileJSON", HttpServletRequest.class));
 
             handlerMapping.registerMapping(
-                    RequestMappingInfo.paths("/services" + id + "/tiles/**").methods(RequestMethod.GET)
+                    RequestMappingInfo.paths("/services/" + id + "/tiles/**").methods(RequestMethod.GET)
                             .build(),
                     this,
                     TileController.class.getDeclaredMethod("getTile", HttpServletRequest.class));
+
+//            handlerMapping.registerMapping(
+//                    RequestMappingInfo.paths("/services/" + id + "/map").methods(RequestMethod.GET)
+//                            .build(),
+//                    this,
+//                    TileController.class.getDeclaredMethod("previewHandler", ModelMap.class, HttpServletRequest.class));
         }
     }
 
@@ -65,22 +73,23 @@ public class TileController {
         if (requestURL.endsWith("/")) {
             requestURL = requestURL.substring(0, requestURL.length() - 1);
         }
-        mbtilesListBean.setRootURL(String.format("%s", requestURL));
+//        mbtilesListBean.setRootURL(String.format("%s", requestURL));
         String requestURI = request.getRequestURI();
         if (requestURI.endsWith("/")) {
             requestURI = requestURI.substring(0, requestURI.length() - 1);
         }
-        String id = requestURI.substring("/services".length());
+        String id = requestURI.substring("/services/".length());
         MbtilesObject mbtilesObject = mbtilesListBean.getMBReader(id);
         MBTilesReader mbTilesReader = mbtilesObject.getMBTileReader();
         String format = mbtilesObject.getImageFormat();
-
+        String host = String.format("%s://%s:%s", request.getScheme(), request.getServerName(), request.getServerPort());
         Map<String, Object> tileJSON = new HashMap<String, Object>() {
             {
                 put("tilejson", "2.1.0");
                 put("scheme", "xyz");
                 put("format", format);
-                put("tiles", new String[]{String.format("%s/tiles/{z}/{x}/{y}.%s", mbtilesListBean.getRootURL(), format)});
+                put("tiles", new String[]{String.format("%s%s/tiles/{z}/{x}/{y}.%s", host, request.getRequestURI(), format)});
+                put("map", String.format("%s%s/map", host, request.getRequestURI()));
             }
         };
         String fileName = mbTilesReader.getFile().getName();
@@ -149,7 +158,7 @@ public class TileController {
             String ext = yExt.substring(yExt.lastIndexOf("."));
 
             String id = requestURI.substring(0, requestURI.lastIndexOf("/tiles/"));
-            id = id.substring("/services".length());
+            id = id.substring("/services/".length());
 
             MbtilesObject mbtilesObject = mbtilesListBean.getMBReader(id);
             MBTilesReader mbTilesReader = mbtilesObject.getMBTileReader();
